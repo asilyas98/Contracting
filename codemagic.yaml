@@ -1,0 +1,106 @@
+workflows:
+  ios-release:
+    name: ContractDraft iOS Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    environment:
+      groups:
+        - contract
+      vars:
+        XCODE_PROJECT: "ContractDraft.xcodeproj"
+        XCODE_SCHEME: "ContractDraft"
+        BUNDLE_ID: "com.simpleai.contract"
+        ASC_KEY_ID: "2MZY33D647"
+        ASC_ISSUER_ID: "18872f51-eb5b-49fc-bc34-d78bbb7d5a65"
+      xcode: latest
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+        - pattern: master
+          include: true
+
+    scripts:
+      - name: Set up code signing
+        script: |
+          keychain initialize
+
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create \
+            --issuer-id "$ASC_ISSUER_ID" \
+            --key-id "$ASC_KEY_ID" \
+            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY"
+
+          keychain add-certificates
+
+          xcode-project use-profiles \
+            --project "$XCODE_PROJECT" \
+            --archive-method app-store \
+            --code-signing-setup-verbose-logging
+
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+
+    artifacts:
+      - $CM_BUILD_DIR/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: 2MZY33D647
+        issuer_id: 18872f51-eb5b-49fc-bc34-d78bbb7d5a65
+        submit_to_testflight: true
+        submit_to_app_store: false
+
+  ios-dev:
+    name: ContractDraft iOS (Ad Hoc)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    environment:
+      groups:
+        - contract
+      vars:
+        XCODE_PROJECT: "ContractDraft.xcodeproj"
+        XCODE_SCHEME: "ContractDraft"
+        BUNDLE_ID: "com.simpleai.contract"
+        ASC_KEY_ID: "2MZY33D647"
+        ASC_ISSUER_ID: "18872f51-eb5b-49fc-bc34-d78bbb7d5a65"
+      xcode: latest
+
+    scripts:
+      - name: Set up code signing
+        script: |
+          keychain initialize
+
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_ADHOC \
+            --create \
+            --issuer-id "$ASC_ISSUER_ID" \
+            --key-id "$ASC_KEY_ID" \
+            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY"
+
+          keychain add-certificates
+
+          xcode-project use-profiles \
+            --project "$XCODE_PROJECT" \
+            --archive-method ad-hoc \
+            --code-signing-setup-verbose-logging
+
+      - name: Build IPA (Ad Hoc)
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
+
+    artifacts:
+      - $CM_BUILD_DIR/build/ios/ipa/*.ipa
